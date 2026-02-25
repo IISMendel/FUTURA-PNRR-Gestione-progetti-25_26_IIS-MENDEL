@@ -6,7 +6,7 @@
 <title>FUTURA PNRR · Dashboard 2025/26 · IIS Mendel</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Nunito:wght@300;400;600;700;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.4.3/echarts.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/echarts-gl/2.0.9/echarts-gl.min.js"></script>
+
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -118,6 +118,105 @@ footer{position:relative;z-index:2;border-top:1px solid var(--border);padding:24
 .logo-f{color:var(--cyan);font-family:'Bebas Neue',sans-serif;font-size:1.1rem;letter-spacing:.1em}
 .star-row{color:var(--gold);letter-spacing:3px;font-size:.85rem}
 
+/* ── CSS 3D BAR CHART ── */
+.bar3d-scene{
+  perspective:900px;
+  padding:32px 24px 48px;
+  overflow:hidden;
+}
+.bar3d-stage{
+  display:flex;
+  align-items:flex-end;
+  gap:14px;
+  height:320px;
+  transform:rotateX(12deg) rotateY(-6deg);
+  transform-style:preserve-3d;
+  padding-bottom:0;
+}
+.bar3d-col{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:0;
+  flex:1;
+  min-width:0;
+  transform-style:preserve-3d;
+}
+.bar3d-bar-wrap{
+  position:relative;
+  width:100%;
+  transform-style:preserve-3d;
+  cursor:pointer;
+  transition:filter .2s;
+}
+.bar3d-bar-wrap:hover{filter:brightness(1.25) drop-shadow(0 0 12px currentColor)}
+/* front face */
+.bar3d-front{
+  width:100%;
+  border-radius:3px 3px 0 0;
+  position:relative;
+  transition:height .9s cubic-bezier(.4,0,.2,1);
+}
+/* top face */
+.bar3d-top{
+  position:absolute;
+  top:0;left:0;right:0;
+  height:12px;
+  border-radius:3px 3px 0 0;
+  transform:rotateX(-90deg);
+  transform-origin:top center;
+}
+/* right face */
+.bar3d-right{
+  position:absolute;
+  top:0;right:-10px;
+  width:10px;
+  height:100%;
+  transform:rotateY(90deg);
+  transform-origin:left center;
+  border-radius:0 3px 3px 0;
+}
+.bar3d-label{
+  margin-top:10px;
+  font-family:'JetBrains Mono',monospace;
+  font-size:.6rem;
+  color:rgba(200,216,240,.5);
+  text-align:center;
+  line-height:1.3;
+  letter-spacing:.03em;
+  word-break:break-word;
+  max-width:100%;
+}
+.bar3d-val{
+  font-family:'Bebas Neue',sans-serif;
+  font-size:1.1rem;
+  margin-bottom:4px;
+  text-align:center;
+}
+/* tooltip */
+.bar3d-tip{
+  position:fixed;z-index:999;
+  background:rgba(6,13,26,.95);
+  border:1px solid rgba(0,229,255,.25);
+  color:#fff;
+  font-family:'JetBrains Mono',monospace;
+  font-size:.78rem;
+  padding:10px 14px;
+  border-radius:3px;
+  pointer-events:none;
+  opacity:0;
+  transition:opacity .15s;
+  white-space:nowrap;
+  box-shadow:0 4px 24px rgba(0,0,0,.6);
+}
+.bar3d-x-axis{
+  display:flex;
+  gap:14px;
+  padding:0 24px 0;
+  border-top:1px solid rgba(0,200,255,.12);
+  margin-top:0;
+}
+
 @media(max-width:900px){
   .kpi-grid{grid-template-columns:repeat(2,1fr)}
   .g2,.g13{grid-template-columns:1fr}
@@ -175,8 +274,8 @@ footer{position:relative;z-index:2;border-top:1px solid var(--border);padding:24
     <div class="sec-hd"><span class="sec-num">01</span><h2 class="sec-title">Partecipazione per corso — Vista 3D</h2><div class="sec-line"></div></div>
     <div class="card">
       <div class="card-ttl">Iscritti per edizione formativa</div>
-      <div class="card-sub">Trascina per ruotare · Scroll per zoom · Tutti i corsi e laboratori FUTURA PNRR</div>
-      <div class="ch" id="bar3d" style="height:480px"></div>
+      <div class="card-sub">Tutti i corsi e laboratori FUTURA PNRR — hover per dettaglio</div>
+      <div id="bar3d-css"></div>
     </div>
   </div>
 
@@ -212,8 +311,8 @@ footer{position:relative;z-index:2;border-top:1px solid var(--border);padding:24
     </div>
 
     <div class="card">
-      <div class="card-ttl">Edizioni associate vs Attestati ottenuti — Confronto 3D interattivo</div>
-      <div class="card-sub">Confronto per fasce · Trascina per ruotare la vista</div>
+      <div class="card-ttl">Edizioni associate vs Attestati ottenuti — Confronto</div>
+      <div class="card-sub">Confronto per fasce di partecipazione · Hover sulle barre per dettaglio</div>
       <div class="ch" id="grouped3d" style="height:400px"></div>
     </div>
   </div>
@@ -330,19 +429,169 @@ const CYAN='#00E5FF',CYAN2='#00B4D8',GOLD='#FFD166',VERDE='#06D6A0',VERDE2='#00A
 const aLabel={color:'rgba(200,216,240,.55)',fontFamily:'JetBrains Mono',fontSize:11};
 const aTip={backgroundColor:'rgba(6,13,26,.92)',borderColor:BORDER,textStyle:{color:'#fff',fontFamily:'JetBrains Mono',fontSize:12}};
 
-/* 1 — BAR 3D CORSI */
+/* 1 — CSS 3D BAR CORSI */
 {
-  const ch=echarts.init(document.getElementById('bar3d'));
-  const corsi=[["Fond. IA\nInsegnanti",30],["Cybersicurezza",20],["Cittadinanza\nDigitale",17],["Nuova\nPassWeb",16],["Lab. Ambienti\nApprendimento",10],["Lab.\nGamification",10],["Ultimo Miglio\nFTS",8],["Ultimo Miglio\nATA",8],["Strumenti\nInclusione",7],["Storytelling\nPodcast",7],["Emergenze\nCyber",6]];
-  const pal=[CYAN,CYAN2,'#007BFF','#4BA6DC',VERDE,VERDE2,GOLD,'#F0A500',LILLA,'#7B4FAD',ROSSO];
+  const corsi=[
+    {label:"Fond. IA\nInsegnanti",short:"IA Insegnanti",val:30,col:'#00E5FF',dark:'#007A99',top:'#33EEFF'},
+    {label:"Cybersicurezza",short:"Cybersicurezza",val:20,col:'#00B4D8',dark:'#005A6B',top:'#33C6E0'},
+    {label:"Cittadinanza\nDigitale",short:"Cittadinanza Dig.",val:17,col:'#007BFF',dark:'#003E80',top:'#3395FF'},
+    {label:"Nuova\nPassWeb",short:"Nuova PassWeb",val:16,col:'#4BA6DC',dark:'#255370',top:'#6FB8E4'},
+    {label:"Lab. Ambienti\nApprendimento",short:"Lab. Ambienti",val:10,col:'#06D6A0',dark:'#036B50',top:'#38DDB4'},
+    {label:"Lab.\nGamification",short:"Lab. Gamification",val:10,col:'#00A67E',dark:'#005340',top:'#33B898'},
+    {label:"Ultimo Miglio\nFTS",short:"Ultimo Miglio FTS",val:8,col:'#FFD166',dark:'#806830',top:'#FFDA85'},
+    {label:"Ultimo Miglio\nATA",short:"Ultimo Miglio ATA",val:8,col:'#F0A500',dark:'#785200',top:'#F3B833'},
+    {label:"Strumenti\nInclusione",short:"Strumenti Inclusione",val:7,col:'#9B72CF',dark:'#4D3967',top:'#B08FD9'},
+    {label:"Storytelling\nPodcast",short:"Storytelling",val:7,col:'#7B4FAD',dark:'#3D2756',top:'#9572C0'},
+    {label:"Emergenze\nCyber",short:"Emergenze Cyber",val:6,col:'#EF476F',dark:'#771F37',top:'#F26B8A'},
+  ];
+  const maxVal=30;
+  const tip=document.createElement('div');
+  tip.className='bar3d-tip';
+  document.body.appendChild(tip);
+
+  const scene=document.createElement('div');
+  scene.className='bar3d-scene';
+  const stage=document.createElement('div');
+  stage.className='bar3d-stage';
+
+  corsi.forEach(c=>{
+    const hPct=(c.val/maxVal)*100;
+    const hPx=Math.round((c.val/maxVal)*280);
+
+    const col=document.createElement('div');
+    col.className='bar3d-col';
+
+    const valEl=document.createElement('div');
+    valEl.className='bar3d-val';
+    valEl.style.color=c.col;
+    valEl.style.opacity='0';
+    valEl.textContent=c.val;
+
+    const wrap=document.createElement('div');
+    wrap.className='bar3d-bar-wrap';
+    wrap.style.color=c.col;
+    wrap.style.height=hPx+'px';
+
+    const front=document.createElement('div');
+    front.className='bar3d-front';
+    front.style.cssText=`height:${hPx}px;background:linear-gradient(180deg,${c.col} 0%,${c.dark} 100%);box-shadow:0 0 18px ${c.col}44,inset 0 1px 0 ${c.top}66`;
+
+    const topF=document.createElement('div');
+    topF.className='bar3d-top';
+    topF.style.background=c.top;
+
+    const right=document.createElement('div');
+    right.className='bar3d-right';
+    right.style.background=c.dark;
+
+    front.appendChild(topF);
+    front.appendChild(right);
+    wrap.appendChild(front);
+
+    const lbl=document.createElement('div');
+    lbl.className='bar3d-label';
+    lbl.textContent=c.label;
+
+    col.appendChild(valEl);
+    col.appendChild(wrap);
+    col.appendChild(lbl);
+    stage.appendChild(col);
+
+    // tooltip + hover
+    wrap.addEventListener('mouseenter',e=>{
+      tip.innerHTML=`<span style="color:${c.col}">▮</span> <b>${c.short}</b><br/>Iscritti: <b style="color:${c.col}">${c.val}</b>`;
+      tip.style.opacity='1';
+    });
+    wrap.addEventListener('mousemove',e=>{
+      tip.style.left=(e.clientX+16)+'px';
+      tip.style.top=(e.clientY-10)+'px';
+    });
+    wrap.addEventListener('mouseleave',()=>tip.style.opacity='0');
+  });
+
+  scene.appendChild(stage);
+  document.getElementById('bar3d-css').appendChild(scene);
+
+  // animate in
+  const barIO=new IntersectionObserver(entries=>{
+    entries.forEach(e=>{
+      if(e.isIntersecting){
+        const fronts=stage.querySelectorAll('.bar3d-front');
+        const vals=stage.querySelectorAll('.bar3d-val');
+        fronts.forEach((f,i)=>{
+          const orig=f.style.height;
+          f.style.height='0px';
+          setTimeout(()=>{f.style.height=orig;f.style.transition='height .8s cubic-bezier(.4,0,.2,1)'},i*55+200);
+        });
+        vals.forEach((v,i)=>setTimeout(()=>{v.style.opacity='1';v.style.transition='opacity .4s'},i*55+700));
+        barIO.disconnect();
+      }
+    });
+  },{threshold:.1});
+  barIO.observe(scene);
+}
+
+/* 3 — GROUPED BAR CONFRONTO */
+{
+  const ch=echarts.init(document.getElementById('grouped3d'));
+  const cats=['0 edizioni','1 edizione','2 edizioni','3 edizioni'];
+  const ediz=[1,33,30,10],att=[9,31,27,7];
+  const CYAN='#00E5FF',VERDE='#06D6A0',BG2='#0C1A30',BORDER='rgba(0,200,255,.13)';
+  const mono={fontFamily:'JetBrains Mono',fontSize:11};
+
   ch.setOption({
-    backgroundColor:BG,
-    tooltip:{...aTip,formatter:p=>`<b>${corsi[p.value[0]][0].replace(/\n/,' ')}</b><br/>Iscritti: <b style="color:${CYAN}">${p.value[2]}</b>`},
-    grid3D:{boxWidth:200,boxHeight:55,boxDepth:60,viewControl:{autoRotate:true,autoRotateSpeed:8,distance:210,elevation:22,azimuth:-25,rotateSensitivity:1,zoomSensitivity:.8},light:{main:{intensity:1.4,shadow:true},ambient:{intensity:.5}},environment:'none',axisLine:{lineStyle:{color:BORDER}},splitLine:{lineStyle:{color:BORDER}}},
-    xAxis3D:{type:'category',data:corsi.map(([n])=>n),axisLabel:{color:'rgba(200,216,240,.6)',fontFamily:'JetBrains Mono',fontSize:10,interval:0},axisLine:{lineStyle:{color:BORDER}},splitLine:{lineStyle:{color:BORDER}}},
-    yAxis3D:{type:'category',data:[''],axisLabel:{show:false},axisLine:{lineStyle:{color:BORDER}},splitLine:{show:false}},
-    zAxis3D:{type:'value',name:'Iscritti',nameTextStyle:{color:'rgba(200,216,240,.5)',fontFamily:'JetBrains Mono',fontSize:11},axisLabel:{...aLabel},axisLine:{lineStyle:{color:BORDER}},splitLine:{lineStyle:{color:'rgba(0,200,255,.1)',type:'dashed'}}},
-    series:[{type:'bar3D',data:corsi.map(([n,v],i)=>({value:[i,0,v],itemStyle:{color:pal[i%pal.length]}})),shading:'lambert',label:{show:false},emphasis:{label:{show:true,formatter:p=>p.value[2],textStyle:{fontSize:14,color:'#fff',fontFamily:'JetBrains Mono'}},itemStyle:{opacity:.9}},barSize:16}]
+    backgroundColor:'transparent',
+    tooltip:{
+      trigger:'axis',axisPointer:{type:'shadow'},
+      backgroundColor:'rgba(6,13,26,.92)',
+      borderColor:BORDER,
+      textStyle:{color:'#fff',fontFamily:'JetBrains Mono',fontSize:12},
+      formatter:params=>{
+        const cat=params[0].axisValueLabel;
+        return `<b>${cat}</b><br/>`+params.map(p=>`<span style="color:${p.color}">▮</span> ${p.seriesName}: <b>${p.value}</b>`).join('<br/>');
+      }
+    },
+    legend:{
+      data:['Edizioni associate','Attestati ottenuti'],
+      top:8,right:16,
+      textStyle:{color:'rgba(200,216,240,.65)',...mono}
+    },
+    grid:{left:16,right:16,bottom:40,top:52,containLabel:true},
+    xAxis:{
+      type:'category',data:cats,
+      axisLabel:{color:'rgba(200,216,240,.6)',...mono},
+      axisLine:{lineStyle:{color:BORDER}},
+      axisTick:{lineStyle:{color:BORDER}}
+    },
+    yAxis:{
+      type:'value',name:'Partecipanti',
+      nameTextStyle:{color:'rgba(200,216,240,.4)',...mono},
+      axisLabel:{color:'rgba(200,216,240,.5)',...mono},
+      axisLine:{show:false},
+      splitLine:{lineStyle:{color:'rgba(0,200,255,.07)',type:'dashed'}}
+    },
+    series:[
+      {
+        name:'Edizioni associate',type:'bar',data:ediz,barMaxWidth:52,barGap:'20%',
+        itemStyle:{
+          color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'#33EEFF'},{offset:1,color:CYAN+'88'}]},
+          borderRadius:[4,4,0,0],
+          shadowBlur:12,shadowColor:CYAN+'55'
+        },
+        emphasis:{itemStyle:{shadowBlur:22,shadowColor:CYAN+'88'}},
+        label:{show:true,position:'top',color:CYAN,...mono,fontSize:12,fontWeight:'bold'}
+      },
+      {
+        name:'Attestati ottenuti',type:'bar',data:att,barMaxWidth:52,
+        itemStyle:{
+          color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'#38DDB4'},{offset:1,color:VERDE+'88'}]},
+          borderRadius:[4,4,0,0],
+          shadowBlur:12,shadowColor:VERDE+'55'
+        },
+        emphasis:{itemStyle:{shadowBlur:22,shadowColor:VERDE+'88'}},
+        label:{show:true,position:'top',color:VERDE,...mono,fontSize:12,fontWeight:'bold'}
+      }
+    ]
   });
   window.addEventListener('resize',()=>ch.resize());
 }
@@ -366,27 +615,6 @@ const aTip={backgroundColor:'rgba(6,13,26,.92)',borderColor:BORDER,textStyle:{co
         {value:7, name:'3 attestati', itemStyle:{color:CYAN}},
       ]
     }]
-  });
-  window.addEventListener('resize',()=>ch.resize());
-}
-
-/* 3 — GROUPED 3D */
-{
-  const ch=echarts.init(document.getElementById('grouped3d'));
-  const cats=['0','1','2','3'];
-  const ediz=[1,33,30,10],att=[9,31,27,7];
-  ch.setOption({
-    backgroundColor:BG,
-    tooltip:{...aTip,formatter:p=>{const t=p.value[1]===0?'Edizioni associate':'Attestati';return `<b>${t}</b> — fascia ${cats[p.value[0]]}<br/>Partecipanti: <b>${p.value[2]}</b>`}},
-    legend:{data:[{name:'Edizioni associate',icon:'rect',itemStyle:{color:CYAN}},{name:'Attestati ottenuti',icon:'rect',itemStyle:{color:VERDE}}],top:6,right:20,textStyle:{color:'rgba(200,216,240,.6)',fontFamily:'JetBrains Mono',fontSize:10}},
-    grid3D:{boxWidth:150,boxHeight:65,boxDepth:80,viewControl:{autoRotate:true,autoRotateSpeed:6,distance:240,elevation:28,azimuth:-30,rotateSensitivity:1,zoomSensitivity:.8},light:{main:{intensity:1.4,shadow:true},ambient:{intensity:.5}},environment:'none',axisLine:{lineStyle:{color:BORDER}},splitLine:{lineStyle:{color:BORDER}}},
-    xAxis3D:{type:'category',data:cats.map(c=>`${c} ed.`),axisLabel:{color:'rgba(200,216,240,.6)',fontFamily:'JetBrains Mono',fontSize:11},axisLine:{lineStyle:{color:BORDER}},name:'Edizioni',nameTextStyle:{color:'rgba(200,216,240,.4)',fontFamily:'JetBrains Mono',fontSize:10}},
-    yAxis3D:{type:'category',data:['Edizioni\nassoc.','Attestati\notenuti'],axisLabel:{color:'rgba(200,216,240,.55)',fontFamily:'JetBrains Mono',fontSize:10},axisLine:{lineStyle:{color:BORDER}},splitLine:{show:false}},
-    zAxis3D:{type:'value',name:'Partecipanti',nameTextStyle:{color:'rgba(200,216,240,.4)',fontFamily:'JetBrains Mono',fontSize:10},axisLabel:{...aLabel,fontSize:10},axisLine:{lineStyle:{color:BORDER}},splitLine:{lineStyle:{color:'rgba(0,200,255,.1)',type:'dashed'}}},
-    series:[
-      {type:'bar3D',name:'Edizioni associate',data:cats.map((_,i)=>({value:[i,0,ediz[i]],itemStyle:{color:CYAN}})),barSize:20,shading:'lambert',itemStyle:{opacity:.85},emphasis:{itemStyle:{opacity:1,shadowBlur:20,shadowColor:'rgba(0,229,255,.5)'}}},
-      {type:'bar3D',name:'Attestati ottenuti', data:cats.map((_,i)=>({value:[i,1,att[i]], itemStyle:{color:VERDE}})),barSize:20,shading:'lambert',itemStyle:{opacity:.85},emphasis:{itemStyle:{opacity:1,shadowBlur:20,shadowColor:'rgba(6,214,160,.5)'}}}
-    ]
   });
   window.addEventListener('resize',()=>ch.resize());
 }
